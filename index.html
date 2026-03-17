@@ -689,6 +689,12 @@
       { id: 14, name: "Cold Brew Bottle 300ml", category: "Beverages", price: 120, stock: 1, emoji: "🧋", description: "Slow-steeped coffee, smooth and ready to sip chilled." }
     ];
 
+    const SERVICEABLE_AREAS = ["560001","560002","560003","560004","GreenCity","Lakeside","Market Street"];
+    const STORE_HOURS = {
+      weekday: { open: 8, close: 21 },
+      sunday: { open: 9, close: 17 }
+    };
+
     let cart = JSON.parse(localStorage.getItem("ff-cart") || "[]");
     const productGrid = document.getElementById("product-grid");
     const categoryFilter = document.getElementById("category-filter");
@@ -787,7 +793,11 @@
       const product = products.find(p => p.id === productId);
       if (!product || product.stock === 0) return;
       const existing = cart.find(i => i.id === productId);
-      const newQty = Math.min(product.stock, (existing?.qty || 0) + qty);
+      const requested = (existing?.qty || 0) + qty;
+      const newQty = Math.min(product.stock, requested);
+      if (requested > product.stock) {
+        alert(`Only ${product.stock} left for ${product.name}. We've added the maximum available.`);
+      }
       if (existing) {
         existing.qty = newQty;
       } else {
@@ -953,13 +963,12 @@
     function checkDelivery() {
       const input = document.getElementById("pincode-input").value.trim();
       const result = document.getElementById("delivery-result");
-      const serviceable = ["560001","560002","560003","560004","GreenCity","Lakeside","Market Street"];
       if (!input) {
         result.textContent = "Enter an area or pincode to check.";
         result.className = "";
         return;
       }
-      const ok = serviceable.some(area => area.toLowerCase() === input.toLowerCase());
+      const ok = SERVICEABLE_AREAS.some(area => area.toLowerCase() === input.toLowerCase());
       if (ok) {
         result.textContent = `✅ Yes, we deliver to ${input}. Place your order anytime 8 AM – 9 PM.`;
         result.className = "status-open";
@@ -969,18 +978,36 @@
       }
     }
 
+    function getHoursForDay(dayIndex) {
+      return dayIndex === 0 ? STORE_HOURS.sunday : STORE_HOURS.weekday;
+    }
+
+    function formatHour(hour) {
+      return `${String(hour).padStart(2, "0")}:00`;
+    }
+
     function updateHours() {
       const now = new Date();
-      const day = now.getDay(); // 0 Sunday
+      const day = now.getDay(); // Sunday = 0
       const hour = now.getHours() + now.getMinutes()/60;
-      const open = day === 0 ? 9 : 8;
-      const close = day === 0 ? 17 : 21;
+      const { open, close } = getHoursForDay(day);
       const statusText = document.getElementById("status-text");
       const hoursStatus = document.getElementById("hours-status");
       const openNow = hour >= open && hour < close;
       const text = openNow ? "Open now" : "Closed";
-      statusText.textContent = `${text} • Closes at ${close}:00`;
-      hoursStatus.innerHTML = `<span class="${openNow ? "status-open" : "status-closed"}">${text}</span> · Hours: ${open}:00–${close}:00`;
+      if (openNow) {
+        statusText.textContent = `${text} • Closes at ${formatHour(close)}`;
+      } else {
+        let nextDay = day;
+        let nextOpen = open;
+        if (hour >= close) {
+          nextDay = (day + 1) % 7;
+          nextOpen = getHoursForDay(nextDay).open;
+        }
+        const weekdayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+        statusText.textContent = `${text} • Opens ${weekdayNames[nextDay]} at ${formatHour(nextOpen)}`;
+      }
+      hoursStatus.innerHTML = `<span class="${openNow ? "status-open" : "status-closed"}">${text}</span> · Hours today: ${formatHour(open)}–${formatHour(close)}`;
     }
 
     document.querySelector(".hamburger").addEventListener("click", () => {
